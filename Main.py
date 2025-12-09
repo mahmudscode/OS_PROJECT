@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
+from matplotlib.patches import Rectangle  # <--- Added missing import
 from cryptography.fernet import Fernet
 import pyperclip
 
@@ -163,11 +164,12 @@ class MainMenuApp:
 
 
 # ==================== CPU SCHEDULING APP ====================
+# ==================== CPU SCHEDULING APP (UPDATED WITH SCROLLING) ====================
 class CPUSchedulingApp:
     def __init__(self, root):
         self.root = root
         self.root.title("CPU Scheduling Algorithms")
-        self.root.geometry("1080x900")
+        self.root.geometry("1200x950")
         
         self.algorithms = ["FCFS", "SJF with AT", "SJF without AT", "Priority Scheduling", "Round Robin"]
         self.selected_algo = tk.StringVar(value=self.algorithms[0])
@@ -200,12 +202,32 @@ class CPUSchedulingApp:
         
         self.root.configure(bg=self.themes['dark']['bg'])
         self.create_widgets()
+        
+        # Bind mouse wheel scrolling
+        self._bind_mouse_scroll()
 
     def create_widgets(self):
         theme = self.themes['dark'] if self.is_dark_mode else self.themes['light']
         
-        self.main_frame = tk.Frame(self.root, bg=theme['bg'])
-        self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
+        # Scrollable canvas for longer content
+        self.main_canvas = tk.Canvas(self.root, bg=theme['bg']) # Made class variable
+        scrollbar = tk.Scrollbar(self.root, orient="vertical", command=self.main_canvas.yview)
+        scrollable_frame = tk.Frame(self.main_canvas, bg=theme['bg'])
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
+        )
+        
+        self.main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        self.main_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.main_canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Main frame inside scrollable area
+        self.main_frame = tk.Frame(scrollable_frame, bg=theme['bg'])
+        self.main_frame.pack(padx=20, pady=20)
 
         label_style = {"bg": theme['bg'], "fg": theme['fg'], "font":("Arial", 14, "bold")}
         entry_style = {"width":50, "font":("Arial", 12), "bg": theme['entry_bg'], "fg": theme['entry_fg']}
@@ -253,13 +275,38 @@ class CPUSchedulingApp:
                                     padx=40, pady=15, cursor="hand2")
         self.run_button.grid(row=7, column=0, columnspan=2, pady=30)
 
-        self.output_text = tk.Text(self.main_frame, height=25, width=110, bg=theme['output_bg'], fg=theme['output_fg'], 
+        self.output_text = tk.Text(self.main_frame, height=15, width=110, bg=theme['output_bg'], fg=theme['output_fg'], 
                                    font=("Courier", 11), relief="solid", borderwidth=2)
         self.output_text.grid(row=8, column=0, columnspan=2, padx=10, pady=20)
 
-        self.scrollbar = tk.Scrollbar(self.main_frame, command=self.output_text.yview)
-        self.scrollbar.grid(row=8, column=2, sticky="ns", pady=20)
-        self.output_text.config(yscrollcommand=self.scrollbar.set)
+        # Internal scrollbar for text box
+        self.text_scrollbar = tk.Scrollbar(self.main_frame, command=self.output_text.yview)
+        self.text_scrollbar.grid(row=8, column=2, sticky="ns", pady=20)
+        self.output_text.config(yscrollcommand=self.text_scrollbar.set)
+
+        # Gantt Chart Frame
+        self.gantt_frame = tk.Frame(self.main_frame, bg=theme['bg'])
+        self.gantt_frame.grid(row=9, column=0, columnspan=2, pady=20)
+        
+        gantt_title = tk.Label(self.gantt_frame, text="📊 Gantt Chart Visualization", 
+                              bg=theme['bg'], fg=theme['title_fg'], font=("Arial", 18, "bold"))
+        gantt_title.pack(pady=10)
+
+    def _bind_mouse_scroll(self):
+        # Bind events to the root window (this Toplevel window)
+        self.root.bind("<MouseWheel>", self._on_mousewheel)  # Windows
+        self.root.bind("<Button-4>", self._on_linux_scroll_up)  # Linux scroll up
+        self.root.bind("<Button-5>", self._on_linux_scroll_down)  # Linux scroll down
+
+    def _on_mousewheel(self, event):
+        # Windows/MacOS scroll event
+        self.main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+    def _on_linux_scroll_up(self, event):
+        self.main_canvas.yview_scroll(-1, "units")
+
+    def _on_linux_scroll_down(self, event):
+        self.main_canvas.yview_scroll(1, "units")
 
     def run_algorithm(self):
         try:
@@ -325,9 +372,74 @@ class CPUSchedulingApp:
             self.output_text.insert(tk.END, f"  Throughput: {throughput:.4f} processes/unit time\n")
             self.output_text.insert(tk.END, f"{'='*110}\n")
 
+            # Draw Gantt Chart
+            self.draw_gantt_chart(processes, st, ct)
+
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
+    def draw_gantt_chart(self, processes, start_times, completion_times):
+        """
+        Draws a Gantt chart showing process execution timeline
+        """
+        # Clear previous chart (keep only the title label)
+        for widget in self.gantt_frame.winfo_children():
+            if not isinstance(widget, tk.Label):
+                widget.destroy()
+        
+        theme = self.themes['dark'] if self.is_dark_mode else self.themes['light']
+        
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(12, 4))
+        fig.patch.set_facecolor(theme['bg'])
+        ax.set_facecolor(theme['output_bg'])
+        
+        # Generate colors for processes
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', 
+                  '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#52B788']
+        
+        # Plot each process
+        for i, (proc, start, end) in enumerate(zip(processes, start_times, completion_times)):
+            duration = end - start
+            color = colors[i % len(colors)]
+            
+            # Draw rectangle for process
+            rect = Rectangle((start, 0.4), duration, 0.2, 
+                           facecolor=color, edgecolor='black', linewidth=2)
+            ax.add_patch(rect)
+            
+            # Add process label
+            ax.text(start + duration/2, 0.5, proc, 
+                   ha='center', va='center', fontsize=10, fontweight='bold', color='black')
+        
+        # Set axis properties
+        ax.set_xlim(0, max(completion_times) + 2)
+        ax.set_ylim(0, 1)
+        ax.set_xlabel('Time', fontsize=12, fontweight='bold', 
+                     color=theme['fg'])
+        ax.set_yticks([])
+        ax.set_title('Process Execution Timeline (Gantt Chart)', fontsize=14, fontweight='bold',
+                    color=theme['title_fg'], pad=20)
+        
+        # Style the axes
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.tick_params(colors=theme['fg'])
+        
+        # Add time markers
+        time_points = sorted(set([0] + start_times + completion_times))
+        ax.set_xticks(time_points)
+        ax.grid(axis='x', alpha=0.3, linestyle='--')
+        
+        plt.tight_layout()
+        
+        # Embed in tkinter
+        canvas = FigureCanvasTkAgg(fig, master=self.gantt_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(pady=10)
+
+    # --- ALGORITHMS ---
     def fcfs(self, processes, arrival, burst):
         n = len(processes)
         proc_data = list(zip(processes, arrival, burst, range(n)))
@@ -491,8 +603,6 @@ class CPUSchedulingApp:
         turnaround_time = [completion_time[i] - arrival[i] for i in range(n)]
         
         return start_time, completion_time, waiting_time, turnaround_time
-
-
 # ==================== FILE MANAGER APP ====================
 class FileManagerApp:
     def __init__(self, root):
