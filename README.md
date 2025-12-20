@@ -27,8 +27,6 @@ OS_PROJECT/
 ├── READ_ME_first.txt
 └── README.md
 
-yaml
-Copy code
 
 ---
 
@@ -172,30 +170,14 @@ Read this file before running the project.
 ## 🚀 How to Run the Project
 
 ### 📥 Clone the Repository
-```bash
+
 git clone https://github.com/mahmudscode/OS_PROJECT.git
 cd OS_PROJECT
 ▶️ Run Main Program
-bash
-Copy code
+
 python Main.py
 ▶️ Run Individual Modules
-bash
-Copy code
 python system_monitor.py
 python EncryptionDecryption.py
 python txt_file_editor.py
-🛠️ Requirements
-Python 3.x
 
-Optional libraries (depending on implementation):
-
-psutil
-
-os
-
-sys
-
-socket
-
-threading
