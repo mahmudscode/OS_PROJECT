@@ -5,15 +5,6 @@ Each Python file represents a separate OS utility module, and together they form
 
 ---
 
-## 📌 Project Objectives
-
-- Understand how Python interacts with the Operating System
-- Implement OS-related utilities using scripting
-- Learn system monitoring, file operations, and hardware interaction
-- Practice modular programming in Python
-
----
-
 ## 🧠 Detailed File Description
 
 ### 🔹 1. `Main.py`
