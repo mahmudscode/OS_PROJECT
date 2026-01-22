@@ -14,22 +14,6 @@ Each Python file represents a separate OS utility module, and together they form
 
 ---
 
-## 📂 Project Structure
-
-OS_PROJECT/
-├── Main.py
-├── EncryptionDecryption.py
-├── algo.py
-├── network.py
-├── system_monitor.py
-├── txt_file_editor.py
-├── usb.py
-├── READ_ME_first.txt
-└── README.md
-
-
----
-
 ## 🧠 Detailed File Description
 
 ### 🔹 1. `Main.py`
